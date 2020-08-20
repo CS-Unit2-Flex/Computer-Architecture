@@ -2,15 +2,41 @@
 
 import sys
 
-ADD = 0b10100000
-SUB = 0B10100001
-MULT = 0b10100010
-DIV = 0b10100011
-PRN = 0b01000111
-LDI = 0b10000010
-HLT = 0b00000001
-POP = 0b01000110
-PUSH = 0b01000101
+# 8-bit
+# ADD = 0b10100000
+# SUB = 0b10100001
+# MULT = 0b10100010
+# DIV = 0b10100011
+# AND = 0b10101000
+# MOD = 0b10100100
+# NOT = 0b01101001
+# OR = 0b10101010
+# XOR = 0b10101011
+# PRN = 0b01000111
+# LDI = 0b10000010
+# HLT = 0b00000001
+# POP = 0b01000110
+# PUSH = 0b01000101
+# CALL = 0b01010000
+# RET = 0b00010001
+
+# hex
+ADD = 0xA0
+SUB = 0xA1
+MULT = 0xA2
+DIV = 0xA3
+AND = 0xA8
+MOD = 0xA4
+NOT = 0x69
+OR = 0xAA
+XOR = 0xAB
+PRN = 0x47
+LDI = 0x82
+HLT = 0x01
+POP = 0x46
+PUSH = 0x45
+CALL = 0x50
+RET = 0x11
 
 
 class CPU:
@@ -22,7 +48,7 @@ class CPU:
         self.ram = [0] * 256 # Ram
         self.reg = [0] * 8 # Register
         self.pc = 0 # Program Counter
-        self.sp = 244 # Stack pointer (0xf4 means 244)
+        self.sp = 7 # Stack Pointer ()
 
     def load(self):
         """Load a program into memory."""
@@ -68,15 +94,36 @@ class CPU:
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
 
+        # Base Maths
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
+            self.reg[reg_a] &= 255
         elif op == "SUB": 
             self.reg[reg_a] -= self.reg[reg_b]
+            self.reg[reg_a] &= 255
         elif op == 'MULT':
             self.reg[reg_a] *= self.reg[reg_b]
+            self.reg[reg_a] &= 255
         elif op == 'DIV':
             answer = self.reg[reg_a] / self.reg[reg_b]
-            self.reg[reg_a] = answer
+
+        # Additional alu operations
+        elif op == 'AND':
+            # print(self.reg[reg_a], self.reg[reg_b])
+            self.reg[reg_a] &= self.reg[reg_b]
+        elif op == 'MOD':
+            self.reg[reg_a] %= self.reg[reg_b]
+            self.reg[reg_a] &= 255
+        elif op == 'NOT':
+            # print(self.reg[reg_a])
+            self.reg[reg_a]  = int(bin(~self.reg[reg_a]), 2) 
+            self.reg[reg_a] &= 255
+        elif op == 'OR':
+            self.reg[reg_a] = self.reg[reg_a] | self.reg[reg_b]
+            print(self.reg[reg_a])
+        elif op == 'XOR':
+            self.reg[reg_a] ^= self.reg[reg_b]
+            self.reg[reg_a] &= 255
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -107,7 +154,7 @@ class CPU:
         keep_running = True
         while keep_running:
                 
-            IR = self.ram_read(self.pc) 
+            IR = self.ram_read(self.pc) # IR = Instruction Register
             op1 = self.ram_read(self.pc + 1)
             op2 = self.ram_read(self.pc + 2)
 
@@ -128,6 +175,15 @@ class CPU:
                 v = self.handle_POP()
                 self.reg[op1] = v
                 self.pc += 2
+            elif IR == CALL:
+                self.reg[self.sp] -= 1
+                self.handle_PUSH(self.pc + 2)
+                registry_placeholder = self.reg[self.ram[self.pc + 1]]
+                self.pc = registry_placeholder
+            elif IR == RET:
+                v = self.handle_POP()
+                self.reg[op1] = v
+                self.pc = v
             elif IR == HLT:
                 keep_running = False
             elif IR == ADD: 
@@ -146,6 +202,23 @@ class CPU:
                 if op2 == 0:
                     keep_running = False
                 self.alu('DIV', op1, op2)
+                self.pc += 3
+            elif IR == AND:
+                self.alu('AND', op1, op2)
+                self.pc += 3
+            elif IR == MOD:
+                if op2 == 0:
+                    keep_running == False
+                self.alu('MOD', op1, op2)
+                self.pc += 3
+            elif IR == NOT:
+                self.alu('NOT', op1, op2)
+                self.pc += 2
+            elif IR == OR:
+                self.alu('OR', op1, op2)
+                self.pc += 3
+            elif IR == XOR:
+                self.alu('XOR', op1, op2)
                 self.pc += 3
             else:
                 cont = False
