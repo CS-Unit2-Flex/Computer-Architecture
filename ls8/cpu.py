@@ -12,13 +12,23 @@ import sys
 # NOT = 0b01101001
 # OR = 0b10101010
 # XOR = 0b10101011
+# CMP = 0b10100111
+# SHL = 0b10101100
+# SHR = 0b10101101
+# DEC = 0b01100110
+# INC = 0b01100101
 # PRN = 0b01000111
+# PRA = 0b01001000
+# LD = 0b10000011
 # LDI = 0b10000010
 # HLT = 0b00000001
 # POP = 0b01000110
 # PUSH = 0b01000101
 # CALL = 0b01010000
 # RET = 0b00010001
+# JMP = 0b01010100
+# JEQ = 0b01010101
+# JNE = 0b01010110
 
 # hex
 ADD = 0xA0
@@ -30,14 +40,23 @@ MOD = 0xA4
 NOT = 0x69
 OR = 0xAA
 XOR = 0xAB
+CMP = 0xA7
+SHL = 0xAC
+SHR = 0xAD
+INC = 0x66
+DEC = 0x65
 PRN = 0x47
+PRA = 0x48
+LD = 0x83
 LDI = 0x82
 HLT = 0x01
 POP = 0x46
 PUSH = 0x45
 CALL = 0x50
 RET = 0x11
-
+JMP = 0x54
+JEQ = 0x55
+JNE = 0x56
 
 class CPU:
     """Main CPU class."""
@@ -49,6 +68,9 @@ class CPU:
         self.reg = [0] * 8 # Register
         self.pc = 0 # Program Counter
         self.sp = 7 # Stack Pointer ()
+        self.equal_flag = 0
+        self.less_than_flag = 0
+        self.greater_than_flag = 0
 
     def load(self):
         """Load a program into memory."""
@@ -124,6 +146,36 @@ class CPU:
         elif op == 'XOR':
             self.reg[reg_a] ^= self.reg[reg_b]
             self.reg[reg_a] &= 255
+        elif op == 'CMP': # CMP == Compare
+            # Check equality
+            if self.reg[reg_a] == self.reg[reg_b]:
+                self.equal_flag = 1
+            else:
+                self.equal_flag = 0
+
+            # Check Less
+            if self.reg[reg_a] < self.reg[reg_b]:
+                self.less_than_flag = 1
+            else:
+                self.less_than_flag = 0
+
+            # Check Greater
+            if self.reg[reg_a] > self.reg[reg_b]:
+                self.greater_than_flag = 1
+            else:
+                self.greater_than_flag = 0
+        elif op == 'SHL':
+            self.reg[reg_a] = self.reg[reg_a] << self.reg[reg_b]
+            self.reg[reg_a] &= 255
+        elif op == 'SHR':
+            self.reg[reg_a] = self.reg[reg_a] >> self.reg[reg_b]
+            self.reg[reg_a] &= 255
+        elif op == 'INC':
+            self.reg[reg_a] -= 1
+            self.reg[reg_a] &= 255
+        elif op == 'DEC':
+            self.reg[reg_a] += 1
+            self.reg[reg_a] &= 255
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -165,7 +217,6 @@ class CPU:
             elif IR == LDI: 
                 self.handle_LDI(op1, op2)
                 self.pc += 3
-
             elif IR == PUSH: 
                 # pass
                 self.handle_PUSH(self.reg[op1])
@@ -181,9 +232,49 @@ class CPU:
                 registry_placeholder = self.reg[self.ram[self.pc + 1]]
                 self.pc = registry_placeholder
             elif IR == RET:
-                v = self.handle_POP()
-                self.reg[op1] = v
-                self.pc = v
+                self.pc = self.ram_read(self.reg[self.sp])
+                self.reg[self.sp] += 1
+            elif IR == JMP:
+                address = self.reg[self.ram[self.pc + 1]]
+                self.pc = address
+            elif IR == JEQ: # Judge Equal
+                registry_addr = self.ram[self.pc + 1]
+
+                if self.equal_flag == 1:
+                    self.pc = self.reg[registry_addr]
+                else:
+                    self.pc += 2
+            elif IR == JNE: # Judge Not Equal
+                registry_addr = self.ram[self.pc + 1]
+                if self.equal_flag == 0:
+                    self.pc = self.reg[registry_addr]
+                else:
+                    self.pc += 2
+            elif IR == PRA:
+                # letter = chr(self.reg[op1], end = '')
+                print(chr(self.reg[op1]), end = '')
+                self.pc += 2
+            elif IR == LD:
+                self.reg[op1] = self.ram[self.reg[op2]]
+                self.pc += 3
+            
+
+            # ALU 
+            elif IR == DEC:
+                self.alu('DEC', op1, op2)
+                self.pc += 2
+            elif IR == INC:
+                self.alu('INC', op1, op2)
+                self.pc += 2
+            elif IR == SHL:
+                self.alu('SHL', op1, op2)
+                self.pc += 3
+            elif IR == SHR:
+                self.alu('SHR', op1, op2)
+                self.pc += 3
+            elif IR == CMP:
+                self.alu('CMP', self.ram[self.pc + 1], self.ram[self.pc + 2])
+                self.pc += 3
             elif IR == HLT:
                 keep_running = False
             elif IR == ADD: 
@@ -248,3 +339,4 @@ class CPU:
 
     def handle_PRN(self, value):
         print(self.reg[value])
+
